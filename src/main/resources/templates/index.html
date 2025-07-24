@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON数据提交表单</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        /* 样式部分保持不变，与之前相同 */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .form-section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .form-section h2 {
+            margin-top: 0;
+            color: #444;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .add-btn, .remove-btn {
+            margin: 5px;
+            padding: 5px 10px;
+            font-size: 14px;
+        }
+        .add-btn {
+            background-color: #2196F3;
+        }
+        .remove-btn {
+            background-color: #f44336;
+        }
+        .item-list {
+            margin-top: 10px;
+        }
+        .item-box {
+            border: 1px dashed #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+            position: relative;
+        }
+        .response {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            background-color: #f8f8f8;
+        }
+    </style>
+</head>
+<body>
+<div id="app" class="container">
+    <h1>JSON数据提交表单</h1>
+
+    <form @submit.prevent="submitForm">
+        <!-- MoneyEntity 部分 -->
+        <div class="form-section">
+            <h2>财务记录</h2>
+            <div class="item-list">
+                <div class="item-box" v-for="(money, index) in formData.moneyEntityList" :key="'money-'+index">
+                    <div class="form-group">
+                        <label>名称</label>
+                        <input v-model="money.name" placeholder="例如: 工资收入">
+                    </div>
+                    <div class="form-group">
+                        <label>金额</label>
+                        <input v-model="money.money" placeholder="例如: 5000.00">
+                    </div>
+                    <div class="form-group">
+                        <label>日期</label>
+                        <input v-model="money.date" type="date">
+                    </div>
+                    <div class="form-group">
+                        <label>类型</label>
+                        <select v-model="money.type">
+                            <option value="收入">收入</option>
+                            <option value="支出">支出</option>
+                            <option value="转账">转账</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>备注</label>
+                        <input v-model="money.remark" placeholder="可选备注信息">
+                    </div>
+                    <button type="button" class="remove-btn" @click="removeMoney(index)">删除此项</button>
+                </div>
+            </div>
+            <button type="button" class="add-btn" @click="addMoney">添加财务记录</button>
+        </div>
+
+        <!-- ItemEntity 部分 -->
+        <div class="form-section">
+            <h2>物品记录</h2>
+            <div class="item-list">
+                <div class="item-box" v-for="(item, index) in formData.itemEntityList" :key="'item-'+index">
+                    <div class="form-group">
+                        <label>物品名称</label>
+                        <input v-model="item.itemThings" placeholder="例如: 笔记本电脑">
+                    </div>
+                    <div class="form-group">
+                        <label>物品价格</label>
+                        <input v-model="item.itemMoney" placeholder="例如: 5999.00">
+                    </div>
+                    <div class="form-group">
+                        <label>购买日期</label>
+                        <input v-model="item.itemDate" type="date">
+                    </div>
+                    <div class="form-group">
+                        <label>物品类型</label>
+                        <select v-model="item.itemType">
+                            <option value="电子设备">电子设备</option>
+                            <option value="家具">家具</option>
+                            <option value="日用品">日用品</option>
+                            <option value="其他">其他</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>数量</label>
+                        <input v-model="item.itemCount" type="number" min="1" placeholder="例如: 1">
+                    </div>
+                    <button type="button" class="remove-btn" @click="removeItem(index)">删除此项</button>
+                </div>
+            </div>
+            <button type="button" class="add-btn" @click="addItem">添加物品记录</button>
+        </div>
+
+        <!-- DeskEntityList 部分 -->
+        <div class="form-section">
+            <h2>办公桌记录</h2>
+            <div class="item-list">
+                <div class="item-box" v-for="(deskList, deskListIndex) in formData.deskEntityList" :key="'deskList-'+deskListIndex">
+                    <h3>办公桌组 {{ deskListIndex + 1 }}</h3>
+                    <div class="item-list">
+                        <div class="item-box" v-for="(desk, deskIndex) in deskList.deskEntityList" :key="'desk-'+deskListIndex+'-'+deskIndex">
+                            <div class="form-group">
+                                <label>办公桌名称</label>
+                                <input v-model="desk.deskName" placeholder="例如: 经理办公桌">
+                            </div>
+                            <div class="form-group">
+                                <label>价格</label>
+                                <input v-model="desk.deskMoney" placeholder="例如: 1200.00">
+                            </div>
+                            <div class="form-group">
+                                <label>购买日期</label>
+                                <input v-model="desk.deskDate" type="date">
+                            </div>
+                            <div class="form-group">
+                                <label>类型</label>
+                                <select v-model="desk.deskType">
+                                    <option value="实木">实木</option>
+                                    <option value="金属">金属</option>
+                                    <option value="复合">复合</option>
+                                    <option value="其他">其他</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>备注</label>
+                                <input v-model="desk.deskRemark" placeholder="可选备注信息">
+                            </div>
+                            <div class="form-group">
+                                <label>数量</label>
+                                <input v-model="desk.deskCount" type="number" min="1" placeholder="例如: 1">
+                            </div>
+                            <button type="button" class="remove-btn" @click="removeDesk(deskListIndex, deskIndex)">删除此项</button>
+                        </div>
+                    </div>
+                    <button type="button" class="add-btn" @click="addDesk(deskListIndex)">添加办公桌记录</button>
+                    <button type="button" class="remove-btn" @click="removeDeskList(deskListIndex)">删除此组</button>
+                </div>
+            </div>
+            <button type="button" class="add-btn" @click="addDeskList">添加办公桌组</button>
+        </div>
+
+        <button type="submit">提交数据</button>
+    </form>
+
+    <div class="response" v-if="response">
+        <h3>服务器响应:</h3>
+        <pre>{{ response }}</pre>
+    </div>
+</div>
+
+<script>
+    new Vue({
+        el: '#app',
+        data: {
+            formData: {
+                moneyEntityList: [],
+                itemEntityList: [],
+                deskEntityList: []
+            },
+            response: null
+        },
+        created() {
+            // 初始化至少一个空项目
+            this.addMoney();
+            this.addItem();
+            this.addDeskList();
+        },
+        methods: {
+            // MoneyEntity 相关方法
+            addMoney() {
+                this.formData.moneyEntityList.push({
+                    name: '',
+                    money: '',
+                    date: '',
+                    type: '收入',
+                    remark: ''
+                });
+            },
+            removeMoney(index) {
+                this.formData.moneyEntityList.splice(index, 1);
+            },
+
+            // ItemEntity 相关方法
+            addItem() {
+                this.formData.itemEntityList.push({
+                    itemThings: '',
+                    itemMoney: '',
+                    itemDate: '',
+                    itemType: '电子设备',
+                    itemCount: 1
+                });
+            },
+            removeItem(index) {
+                this.formData.itemEntityList.splice(index, 1);
+            },
+
+            // DeskEntityList 相关方法
+            addDeskList() {
+                this.formData.deskEntityList.push({
+                    deskEntityList: []
+                });
+                this.addDesk(this.formData.deskEntityList.length - 1);
+            },
+            removeDeskList(index) {
+                this.formData.deskEntityList.splice(index, 1);
+            },
+            addDesk(deskListIndex) {
+                this.formData.deskEntityList[deskListIndex].deskEntityList.push({
+                    deskName: '',
+                    deskMoney: '',
+                    deskDate: '',
+                    deskType: '实木',
+                    deskRemark: '',
+                    deskCount: 1
+                });
+            },
+            removeDesk(deskListIndex, deskIndex) {
+                this.formData.deskEntityList[deskListIndex].deskEntityList.splice(deskIndex, 1);
+            },
+
+            // 提交表单 - 修改为发送到localhost:8080
+            submitForm() {
+                axios.post('http://localhost:8080/test/json/append/json', this.formData)
+                    .then(response => {
+                        this.response = response.data;
+                        alert('提交成功！');
+                    })
+                    .catch(error => {
+                        this.response = error.response ? error.response.data : error.message;
+                        alert('提交失败: ' + (error.response ? error.response.data.msg : error.message));
+                    });
+            }
+        }
+    });
+</script>
+</body>
+</html>
