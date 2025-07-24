@@ -2,13 +2,16 @@ package com.example.zzk;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.alibaba.fastjson2.JSON;
+import com.example.zzk.feign.GoFeign;
 import com.example.zzk.model.DTO;
 import com.example.zzk.model.Po;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -54,6 +57,7 @@ class JsonTestApplicationTests {
         BeanUtil.copyProperties(sourceVo, targetDto2);
         System.out.println("Hutool结果：" + targetDto2.getInfo());
     }
+
     @Test
     // 推荐：使用JSON工具显式转换
     public void safeCopyWithConvert() {
@@ -67,5 +71,18 @@ class JsonTestApplicationTests {
         System.out.println("转换后的JSON字符串：" + vo.getInfo());
         List<String> strings = JSON.parseArray(vo.getInfo(), String.class);
         System.out.println("转换后的List：" + strings);
+    }
+
+    @Autowired
+    private GoFeign goFeign;
+
+    @Test
+    public void testJsonConversion() {
+        List<String> list = new ArrayList<>();
+        list.add("hello");
+        list.add("go");
+        String goApi = goFeign.getGoApi(list);
+        System.out.println(goApi);
+
     }
 }
