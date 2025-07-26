@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Java多线程性能优化演示</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        
+        .test-section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 2px solid #ecf0f1;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            justify-content: center;
+        }
+        
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            min-width: 150px;
+        }
+        
+        .btn-serial {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .btn-serial:hover {
+            background: #c0392b;
+            transform: translateY(-2px);
+        }
+        
+        .btn-parallel {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .btn-parallel:hover {
+            background: #229954;
+            transform: translateY(-2px);
+        }
+        
+        .btn-test {
+            background: #3498db;
+            color: white;
+        }
+        
+        .btn-test:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+        
+        .result-container {
+            margin: 20px 0;
+            padding: 15px;
+            background: #ffffff;
+            border-radius: 6px;
+            border-left: 4px solid #3498db;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #7f8c8d;
+            font-style: italic;
+        }
+        
+        .error {
+            background: #ffe6e6;
+            border-left-color: #e74c3c;
+            color: #c0392b;
+        }
+        
+        .success {
+            background: #e8f5e8;
+            border-left-color: #27ae60;
+        }
+        
+        .performance-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            border: 1px solid #dee2e6;
+        }
+        
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .stat-label {
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+        
+        .comparison {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .improvement {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #27ae60;
+        }
+        
+        pre {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        .input-group {
+            margin: 15px 0;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        
+        textarea {
+            height: 120px;
+            resize: vertical;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Java多线程性能优化演示</h1>
+        
+        <div class="test-section">
+            <h2>📊 性能测试</h2>
+            <p>此演示展示了串行处理与并行处理（CompletableFuture）的性能差异。</p>
+            
+            <div class="input-group">
+                <label for="testData">测试数据 (JSON格式):</label>
+                <textarea id="testData" placeholder="点击'获取测试数据'自动填充">
+{
+  "id": 1001,
+  "name": "性能测试数据",
+  "category": "测试",
+  "tags": ["performance", "test", "demo"],
+  "amount": 1000.0
+}
+                </textarea>
+            </div>
+            
+            <div class="button-group">
+                <button class="btn-test" onclick="getTestData()">获取测试数据</button>
+                <button class="btn-serial" onclick="testSerial()">串行处理测试</button>
+                <button class="btn-parallel" onclick="testParallel()">并行处理测试</button>
+            </div>
+            
+            <div id="results"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>📈 性能对比</h2>
+            <div id="comparison" style="display: none;">
+                <div class="performance-stats">
+                    <div class="stat-card">
+                        <div class="stat-value" id="serialTime">-</div>
+                        <div class="stat-label">串行处理耗时 (ms)</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="parallelTime">-</div>
+                        <div class="stat-label">并行处理耗时 (ms)</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="improvement">-</div>
+                        <div class="stat-label">性能提升</div>
+                    </div>
+                </div>
+                <div class="comparison">
+                    <div id="improvementText"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2>💡 技术说明</h2>
+            <h3>模拟业务场景:</h3>
+            <ul>
+                <li>数据验证 - 100ms</li>
+                <li>数据库查询 - 200ms</li>
+                <li>外部API调用 - 300ms</li>
+                <li>数据计算 - 150ms</li>
+            </ul>
+            
+            <h3>性能优化原理:</h3>
+            <p>通过CompletableFuture实现异步并行处理，将原本需要串行执行的IO密集型任务并行化，显著减少总体响应时间。</p>
+            
+            <h3>关键代码:</h3>
+            <pre>
+// 并行处理
+CompletableFuture&lt;ValidationResult&gt; validationFuture = 
+    CompletableFuture.supplyAsync(() -&gt; validateData(request));
+    
+CompletableFuture&lt;List&lt;DatabaseRecord&gt;&gt; dbFuture = 
+    CompletableFuture.supplyAsync(() -&gt; queryDatabase(request.getId()));
+    
+CompletableFuture&lt;ApiResponse&gt; apiFuture = 
+    CompletableFuture.supplyAsync(() -&gt; callExternalApi(request));
+
+// 等待所有任务完成
+return CompletableFuture.allOf(validationFuture, dbFuture, apiFuture)
+    .thenApply(v -&gt; buildResult(...)).join();
+            </pre>
+        </div>
+    </div>
+
+    <script>
+        let serialResult = null;
+        let parallelResult = null;
+        
+        const API_BASE = 'http://localhost:8080/api/performance';
+        
+        async function getTestData() {
+            try {
+                const response = await fetch(`${API_BASE}/test-data`);
+                const result = await response.json();
+                
+                if (result.code === 200) {
+                    document.getElementById('testData').value = JSON.stringify(result.data, null, 2);
+                    showResult('测试数据获取成功', 'success');
+                } else {
+                    showResult('获取测试数据失败: ' + result.msg, 'error');
+                }
+            } catch (error) {
+                showResult('网络错误: ' + error.message, 'error');
+            }
+        }
+        
+        async function testSerial() {
+            await runTest('serial', '串行处理');
+        }
+        
+        async function testParallel() {
+            await runTest('parallel', '并行处理');
+        }
+        
+        async function runTest(type, name) {
+            const testData = document.getElementById('testData').value;
+            let requestData;
+            
+            try {
+                requestData = JSON.parse(testData);
+            } catch (e) {
+                showResult('测试数据格式错误: ' + e.message, 'error');
+                return;
+            }
+            
+            showResult(`正在执行${name}...`, 'loading');
+            
+            const startTime = Date.now();
+            
+            try {
+                const response = await fetch(`${API_BASE}/process/${type}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+                
+                const result = await response.json();
+                const endTime = Date.now();
+                const clientTime = endTime - startTime;
+                
+                if (result.code === 200) {
+                    const serverTime = result.data.processingTimeMs;
+                    
+                    if (type === 'serial') {
+                        serialResult = { clientTime, serverTime, data: result.data };
+                    } else {
+                        parallelResult = { clientTime, serverTime, data: result.data };
+                    }
+                    
+                    showResult(`${name}完成！服务端耗时: ${serverTime}ms，客户端耗时: ${clientTime}ms`, 'success');
+                    updateComparison();
+                } else {
+                    showResult(`${name}失败: ${result.msg}`, 'error');
+                }
+            } catch (error) {
+                showResult(`${name}网络错误: ${error.message}`, 'error');
+            }
+        }
+        
+        function showResult(message, type) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `<div class="result-container ${type}">${message}</div>`;
+        }
+        
+        function updateComparison() {
+            if (serialResult && parallelResult) {
+                const serialTime = serialResult.serverTime;
+                const parallelTime = parallelResult.serverTime;
+                const improvement = ((serialTime - parallelTime) / serialTime * 100);
+                
+                document.getElementById('serialTime').textContent = serialTime;
+                document.getElementById('parallelTime').textContent = parallelTime;
+                document.getElementById('improvement').textContent = improvement.toFixed(1) + '%';
+                
+                const improvementText = improvement > 0 
+                    ? `🚀 并行处理比串行处理快 ${improvement.toFixed(1)}%，响应时间减少了 ${serialTime - parallelTime}ms！`
+                    : `⚠️ 并行处理反而慢了 ${Math.abs(improvement).toFixed(1)}%`;
+                    
+                document.getElementById('improvementText').innerHTML = 
+                    `<div class="improvement">${improvementText}</div>`;
+                
+                document.getElementById('comparison').style.display = 'block';
+            }
+        }
+        
+        // 页面加载时自动获取测试数据
+        window.onload = function() {
+            getTestData();
+        };
+    </script>
+</body>
+</html>
