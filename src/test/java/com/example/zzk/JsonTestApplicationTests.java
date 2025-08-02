@@ -1,88 +1,151 @@
 package com.example.zzk;
 
-import cn.hutool.core.bean.BeanUtil;
-import com.alibaba.fastjson2.JSON;
-import com.example.zzk.feign.GoFeign;
-import com.example.zzk.model.DTO;
-import com.example.zzk.model.Po;
+
+import com.example.zzk.mapper.JsonMapper;
+import com.example.zzk.model.User;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 @Slf4j
 @SpringBootTest
 class JsonTestApplicationTests {
-    // List转String
-    @Test
-    void convertListToString() {
-        // 准备测试数据
-        List<String> groups = Arrays.asList("销售小组", "测试小组", "商务小组");
-        DTO dto = new DTO();
-        dto.setInfo(groups);
-
-        Po vo = new Po();
-
-        // 使用Spring BeanUtils复制 bean属性
-        System.out.println("=== Spring BeanUtils测试 ===");
-        BeanUtils.copyProperties(dto, vo);
-        System.out.println("结果：" + vo.getInfo());
-
-        // 使用Hutool BeanUtil
-        System.out.println("=== Hutool BeanUtil测试 ===");
-        Po vo2 = new Po();
-        BeanUtil.copyProperties(dto, vo2);
-        System.out.println("结果：" + vo2.getInfo());
-    }
-
-    @Test
-    void convertStringToList() {
-        // String转List测试
-        Po sourceVo = new Po();
-        sourceVo.setInfo("[\"销售小组\",\"测试小组\",\"商务小组\"]");
-
-        DTO targetDto = new DTO();
-
-        // Spring BeanUtils
-        BeanUtils.copyProperties(sourceVo, targetDto);
-        System.out.println("Spring结果：" + targetDto.getInfo());
-
-        // Hutool BeanUtil
-        DTO targetDto2 = new DTO();
-        BeanUtil.copyProperties(sourceVo, targetDto2);
-        System.out.println("Hutool结果：" + targetDto2.getInfo());
-    }
-
-    @Test
-    // 推荐：使用JSON工具显式转换
-    public void safeCopyWithConvert() {
-        DTO dto = new DTO();
-        dto.setInfo(Arrays.asList("销售小组", "测试小组", "商务小组"));
-        String jsonString = JSON.toJSONString(dto.getInfo());
-
-        // DB交互
-        Po vo = new Po();
-        vo.setInfo(jsonString);
-        System.out.println("转换后的JSON字符串：" + vo.getInfo());
-        List<String> strings = JSON.parseArray(vo.getInfo(), String.class);
-        System.out.println("转换后的List：" + strings);
-    }
-
     @Autowired
-    private GoFeign goFeign;
+    private JsonMapper jsonMapper;
 
     @Test
-    public void testJsonConversion() {
-        List<String> list = new ArrayList<>();
-        list.add("hello");
-        list.add("go");
-        String goApi = goFeign.getGoApi(list);
-        System.out.println(goApi);
+    public void insertIds() {
+        jsonMapper.insert(new User());
+    }
 
+    @Test
+    public void testConcurrentInsert() throws InterruptedException {
+        int threadCount = 50;
+        int insertCount = 100;
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        CountDownLatch latch = new CountDownLatch(threadCount);
+        List<Long> allIds = Collections.synchronizedList(new ArrayList<>());
+
+        for (int i = 0; i < threadCount; i++) {
+            executor.submit(() -> {
+                try {
+                    for (int j = 0; j < insertCount; j++) {
+                        User user = new User();
+                        user.setName("TestUser_" + Thread.currentThread().getId() + "_" + j);
+                        jsonMapper.insert(user);
+                        allIds.add(user.getId());
+                        log.info("Thread: {}, Insert ID: {}", Thread.currentThread().getId(), user.getId());
+                    }
+                } catch (Exception e) {
+                    log.error("Insert error: ", e);
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        latch.await(30, TimeUnit.SECONDS);
+        executor.shutdown();
+
+        // 检测ID重复
+        Set<Long> uniqueIds = allIds.stream().collect(Collectors.toSet());
+        log.info("Total inserted: {}, Unique IDs: {}", allIds.size(), uniqueIds.size());
+        
+        if (allIds.size() != uniqueIds.size()) {
+            log.error("发现ID重复！总插入数: {}, 唯一ID数: {}", allIds.size(), uniqueIds.size());
+            // 找出重复的ID
+            Set<Long> duplicates = allIds.stream()
+                .collect(Collectors.groupingBy(id -> id, Collectors.counting()))
+                .entrySet().stream()
+                .filter(entry -> entry.getValue() > 1)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
+            log.error("重复的ID: {}", duplicates);
+        } else {
+            log.info("所有ID唯一，无重复");
+        }
+    }
+
+    @Test
+    public void testRealTimeDuplicateMonitor() throws InterruptedException {
+        log.info("开始实时ID重复监控测试...");
+        
+        int threadCount = 20;
+        int insertCount = 200;
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        CountDownLatch latch = new CountDownLatch(threadCount);
+        
+        // 使用ConcurrentHashMap来实时监控ID重复
+        ConcurrentHashMap<Long, AtomicInteger> idCounter = new ConcurrentHashMap<>();
+        AtomicBoolean duplicateFound = new AtomicBoolean(false);
+        AtomicLong totalInserted = new AtomicLong(0);
+
+        for (int i = 0; i < threadCount; i++) {
+            final int threadIndex = i;
+            executor.submit(() -> {
+                try {
+                    for (int j = 0; j < insertCount; j++) {
+                        User user = new User();
+                        user.setName("RealTimeTest_" + threadIndex + "_" + j + "_" + System.currentTimeMillis());
+                        jsonMapper.insert(user);
+                        
+                        Long userId = user.getId();
+                        long currentTotal = totalInserted.incrementAndGet();
+                        
+                        // 实时检测ID重复
+                        AtomicInteger count = idCounter.computeIfAbsent(userId, k -> new AtomicInteger(0));
+                        int currentCount = count.incrementAndGet();
+                        
+                        if (currentCount > 1 && !duplicateFound.get()) {
+                            duplicateFound.set(true);
+                            log.error("🚨 实时检测到ID重复！ID: {}, 出现次数: {}, 总插入数: {}", 
+                                userId, currentCount, currentTotal);
+                            log.error("重复ID详情 - 线程: {}, 批次: {}", threadIndex, j);
+                        }
+                        
+                        // 每100条记录输出一次统计
+                        if (currentTotal % 100 == 0) {
+                            log.info("已插入 {} 条记录，唯一ID数: {}", currentTotal, idCounter.size());
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("插入异常 - 线程 {}: ", threadIndex, e);
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        latch.await(60, TimeUnit.SECONDS);
+        executor.shutdown();
+        
+        // 最终统计
+        long finalTotal = totalInserted.get();
+        int uniqueCount = idCounter.size();
+        
+        log.info("=== 实时监控测试结果 ===");
+        log.info("总插入记录数: {}", finalTotal);
+        log.info("唯一ID数量: {}", uniqueCount);
+        log.info("是否发现重复: {}", duplicateFound.get() ? "是" : "否");
+        
+        if (duplicateFound.get()) {
+            // 列出所有重复的ID
+            List<Map.Entry<Long, AtomicInteger>> duplicates = idCounter.entrySet().stream()
+                .filter(entry -> entry.getValue().get() > 1)
+                .sorted((a, b) -> b.getValue().get() - a.getValue().get())
+                .collect(Collectors.toList());
+            
+            log.error("所有重复ID详情:");
+            duplicates.forEach(entry -> 
+                log.error("ID: {}, 重复次数: {}", entry.getKey(), entry.getValue().get()));
+        }
     }
 }

@@ -122,17 +122,152 @@
             border-radius: 6px;
             text-align: center;
             border: 1px solid #dee2e6;
+            position: relative;
+            overflow: hidden;
         }
         
         .stat-value {
             font-size: 1.8em;
             font-weight: bold;
             color: #2c3e50;
+            position: relative;
+            z-index: 2;
         }
         
         .stat-label {
             color: #7f8c8d;
             margin-top: 5px;
+            position: relative;
+            z-index: 2;
+        }
+        
+        /* 可视化进度条样式 */
+        .visual-comparison {
+            margin: 30px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+        }
+        
+        .progress-container {
+            margin: 20px 0;
+        }
+        
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        
+        .progress-bar {
+            height: 40px;
+            background: #e9ecef;
+            border-radius: 20px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .progress-fill {
+            height: 100%;
+            border-radius: 20px;
+            position: relative;
+            transition: width 2s ease-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .progress-serial {
+            background: linear-gradient(90deg, #e74c3c, #c0392b);
+        }
+        
+        .progress-parallel {
+            background: linear-gradient(90deg, #27ae60, #229954);
+        }
+        
+        /* 动画效果 */
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, 
+                transparent, 
+                rgba(255,255,255,0.3), 
+                transparent
+            );
+            animation: shimmer 2s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+        
+        /* 速度对比动画 */
+        .speed-demo {
+            margin: 20px 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            color: white;
+        }
+        
+        .race-track {
+            background: rgba(255,255,255,0.1);
+            height: 60px;
+            border-radius: 30px;
+            position: relative;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+        
+        .racer {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            position: absolute;
+            top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            transition: left 2s ease-out;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        
+        .racer-serial {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .racer-parallel {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .finish-line {
+            position: absolute;
+            right: 10px;
+            top: 0;
+            height: 100%;
+            width: 3px;
+            background: repeating-linear-gradient(
+                0deg,
+                #fff,
+                #fff 5px,
+                #000 5px,
+                #000 10px
+            );
         }
         
         .comparison {
@@ -219,6 +354,8 @@
         <div class="test-section">
             <h2>📈 性能对比</h2>
             <div id="comparison" style="display: none;">
+                
+                <!-- 数字统计 -->
                 <div class="performance-stats">
                     <div class="stat-card">
                         <div class="stat-value" id="serialTime">-</div>
@@ -233,6 +370,75 @@
                         <div class="stat-label">性能提升</div>
                     </div>
                 </div>
+
+                <!-- 可视化进度条对比 -->
+                <div class="visual-comparison">
+                    <h3>⚡ 响应时间可视化对比</h3>
+                    
+                    <div class="progress-container">
+                        <div class="progress-label">
+                            <span>🐌 串行处理</span>
+                            <span id="serialTimeDisplay">-</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div id="serialProgress" class="progress-fill progress-serial" style="width: 0%;">
+                                等待测试...
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="progress-container">
+                        <div class="progress-label">
+                            <span>🚀 并行处理</span>
+                            <span id="parallelTimeDisplay">-</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div id="parallelProgress" class="progress-fill progress-parallel" style="width: 0%;">
+                                等待测试...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 速度竞赛动画 -->
+                <div class="speed-demo">
+                    <h3>🏁 速度竞赛演示</h3>
+                    <p>点击下方按钮观看速度对比动画</p>
+                    
+                    <div style="text-align: center; margin: 15px 0;">
+                        <button onclick="startRace()" style="padding: 10px 20px; background: #fff; color: #667eea; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
+                            🏁 开始竞赛
+                        </button>
+                        <button onclick="resetRace()" style="padding: 10px 20px; background: rgba(255,255,255,0.2); color: #fff; border: 1px solid #fff; border-radius: 5px; font-weight: bold; cursor: pointer; margin-left: 10px;">
+                            🔄 重置
+                        </button>
+                    </div>
+                    
+                    <div style="margin: 10px 0;">
+                        <div style="display: flex; justify-content: space-between; font-size: 14px;">
+                            <span>🐌 串行处理 (750ms)</span>
+                            <span>🏁 终点</span>
+                        </div>
+                        <div class="race-track">
+                            <div id="racerSerial" class="racer racer-serial" style="left: 10px;">🐌</div>
+                            <div class="finish-line"></div>
+                        </div>
+                    </div>
+                    
+                    <div style="margin: 10px 0;">
+                        <div style="display: flex; justify-content: space-between; font-size: 14px;">
+                            <span>🚀 并行处理 (300ms)</span>
+                            <span>🏁 终点</span>
+                        </div>
+                        <div class="race-track">
+                            <div id="racerParallel" class="racer racer-parallel" style="left: 10px;">🚀</div>
+                            <div class="finish-line"></div>
+                        </div>
+                    </div>
+                    
+                    <div id="raceResult" style="text-align: center; margin-top: 15px; font-size: 18px; font-weight: bold;"></div>
+                </div>
+                
                 <div class="comparison">
                     <div id="improvementText"></div>
                 </div>
@@ -359,9 +565,13 @@ return CompletableFuture.allOf(validationFuture, dbFuture, apiFuture)
                 const parallelTime = parallelResult.serverTime;
                 const improvement = ((serialTime - parallelTime) / serialTime * 100);
                 
+                // 更新数字显示
                 document.getElementById('serialTime').textContent = serialTime;
                 document.getElementById('parallelTime').textContent = parallelTime;
                 document.getElementById('improvement').textContent = improvement.toFixed(1) + '%';
+                
+                // 更新可视化进度条
+                updateProgressBars(serialTime, parallelTime);
                 
                 const improvementText = improvement > 0 
                     ? `🚀 并行处理比串行处理快 ${improvement.toFixed(1)}%，响应时间减少了 ${serialTime - parallelTime}ms！`
@@ -372,6 +582,91 @@ return CompletableFuture.allOf(validationFuture, dbFuture, apiFuture)
                 
                 document.getElementById('comparison').style.display = 'block';
             }
+        }
+        
+        function updateProgressBars(serialTime, parallelTime) {
+            // 找出最大时间作为100%基准
+            const maxTime = Math.max(serialTime, parallelTime);
+            
+            // 计算相对宽度
+            const serialWidth = (serialTime / maxTime) * 100;
+            const parallelWidth = (parallelTime / maxTime) * 100;
+            
+            // 更新显示时间
+            document.getElementById('serialTimeDisplay').textContent = `${serialTime}ms`;
+            document.getElementById('parallelTimeDisplay').textContent = `${parallelTime}ms`;
+            
+            // 延迟更新进度条以产生动画效果
+            setTimeout(() => {
+                const serialBar = document.getElementById('serialProgress');
+                const parallelBar = document.getElementById('parallelProgress');
+                
+                serialBar.style.width = `${serialWidth}%`;
+                serialBar.textContent = `${serialTime}ms`;
+                
+                parallelBar.style.width = `${parallelWidth}%`;
+                parallelBar.textContent = `${parallelTime}ms`;
+            }, 500);
+        }
+        
+        function startRace() {
+            // 重置位置
+            resetRace();
+            
+            const serialRacer = document.getElementById('racerSerial');
+            const parallelRacer = document.getElementById('racerParallel');
+            const raceResult = document.getElementById('raceResult');
+            
+            // 清除之前的结果
+            raceResult.textContent = '';
+            
+            // 计算终点位置（考虑赛车宽度）
+            const trackWidth = serialRacer.parentElement.offsetWidth;
+            const finishPosition = trackWidth - 60; // 减去赛车宽度和边距
+            
+            // 模拟实际测试时间比例
+            const serialTime = 750; // ms
+            const parallelTime = 300; // ms
+            
+            // 设置动画持续时间（按比例缩放到合理的观看时间）
+            const animationScale = 3; // 3秒显示完整动画
+            const serialDuration = (serialTime / serialTime) * animationScale; // 3秒
+            const parallelDuration = (parallelTime / serialTime) * animationScale; // 1.2秒
+            
+            // 开始动画
+            setTimeout(() => {
+                serialRacer.style.transition = `left ${serialDuration}s linear`;
+                serialRacer.style.left = `${finishPosition}px`;
+                
+                parallelRacer.style.transition = `left ${parallelDuration}s linear`;
+                parallelRacer.style.left = `${finishPosition}px`;
+                
+                // 显示并行处理获胜
+                setTimeout(() => {
+                    raceResult.innerHTML = '🎉 并行处理获胜！<br>快了 <span style="color: #ffeb3b;">60%</span>';
+                }, parallelDuration * 1000);
+                
+                // 显示串行处理完成
+                setTimeout(() => {
+                    raceResult.innerHTML = '🎉 并行处理获胜！快了 <span style="color: #ffeb3b;">60%</span><br>🐌 串行处理才刚完成...';
+                }, serialDuration * 1000);
+                
+            }, 100);
+        }
+        
+        function resetRace() {
+            const serialRacer = document.getElementById('racerSerial');
+            const parallelRacer = document.getElementById('racerParallel');
+            const raceResult = document.getElementById('raceResult');
+            
+            // 重置位置
+            serialRacer.style.transition = 'none';
+            parallelRacer.style.transition = 'none';
+            serialRacer.style.left = '10px';
+            parallelRacer.style.left = '10px';
+            
+            // 清除结果
+            raceResult.textContent = '';
         }
         
         // 页面加载时自动获取测试数据
