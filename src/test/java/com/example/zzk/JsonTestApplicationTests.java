@@ -5,8 +5,6 @@ import com.alibaba.fastjson2.JSON;
 import com.example.zzk.feign.GoFeign;
 import com.example.zzk.model.DTO;
 import com.example.zzk.model.Po;
-import com.example.zzk.result.ApiResponse;
-import com.example.zzk.model.InfoAddVo;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.BeanUtils;
@@ -20,42 +18,71 @@ import java.util.List;
 @Slf4j
 @SpringBootTest
 class JsonTestApplicationTests {
+    // List转String
+    @Test
+    void convertListToString() {
+        // 准备测试数据
+        List<String> groups = Arrays.asList("销售小组", "测试小组", "商务小组");
+        DTO dto = new DTO();
+        dto.setInfo(groups);
+
+        Po vo = new Po();
+
+        // 使用Spring BeanUtils复制 bean属性
+        System.out.println("=== Spring BeanUtils测试 ===");
+        BeanUtils.copyProperties(dto, vo);
+        System.out.println("结果：" + vo.getInfo());
+
+        // 使用Hutool BeanUtil
+        System.out.println("=== Hutool BeanUtil测试 ===");
+        Po vo2 = new Po();
+        BeanUtil.copyProperties(dto, vo2);
+        System.out.println("结果：" + vo2.getInfo());
+    }
+
+    @Test
+    void convertStringToList() {
+        // String转List测试
+        Po sourceVo = new Po();
+        sourceVo.setInfo("[\"销售小组\",\"测试小组\",\"商务小组\"]");
+
+        DTO targetDto = new DTO();
+
+        // Spring BeanUtils
+        BeanUtils.copyProperties(sourceVo, targetDto);
+        System.out.println("Spring结果：" + targetDto.getInfo());
+
+        // Hutool BeanUtil
+        DTO targetDto2 = new DTO();
+        BeanUtil.copyProperties(sourceVo, targetDto2);
+        System.out.println("Hutool结果：" + targetDto2.getInfo());
+    }
+
+    @Test
+    // 推荐：使用JSON工具显式转换
+    public void safeCopyWithConvert() {
+        DTO dto = new DTO();
+        dto.setInfo(Arrays.asList("销售小组", "测试小组", "商务小组"));
+        String jsonString = JSON.toJSONString(dto.getInfo());
+
+        // DB交互
+        Po vo = new Po();
+        vo.setInfo(jsonString);
+        System.out.println("转换后的JSON字符串：" + vo.getInfo());
+        List<String> strings = JSON.parseArray(vo.getInfo(), String.class);
+        System.out.println("转换后的List：" + strings);
+    }
+
     @Autowired
     private GoFeign goFeign;
 
     @Test
     public void testJsonConversion() {
         List<String> list = new ArrayList<>();
+        list.add("hello");
+        list.add("go");
+        String goApi = goFeign.getGoApi(list);
+        System.out.println(goApi);
 
-        list.add("1");
-        list.add("2");
-        list.add("3");
-        list.add("4");
-        list.add("5");
-        ApiResponse<String> goApi = goFeign.getGoApi(list);
-        System.out.println("goApi = " + goApi);
-        System.out.println("goApi.getData() = " + goApi.getData());
-
-    }
-
-    @Test
-    public void testPostRequest(){
-        InfoAddVo info = new InfoAddVo();
-        info.setName("John Doe");
-        info.setAge(30);
-        info.setPhone("123-456-7890");
-        info.setSex(1);
-
-        ApiResponse<InfoAddVo> response = goFeign.postInfo(info);
-        System.out.println("Response Data: " + response);
-        System.out.println("Response Message: " + response.getData());
-    }
-
-    @Test
-    public void testSSolveNumber(){
-        List<Integer> numbers = Arrays.asList(1, 2, 3, 4, 5);
-        ApiResponse<Integer> response = goFeign.solveNumber(numbers);
-        System.out.println("Response Data: " + response);
-        System.out.println("Response Message: " + response.getData());
     }
 }
