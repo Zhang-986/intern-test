@@ -6,15 +6,19 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
   application:
     name: json-test
+  data:
+    redis:
+      port: 6379
+      host: localhost
 server:
   port: 8080
   address: 0.0.0.0
 logging:
   level:
-    com.example.zzk: warn
-    org.springframework.web: warn
-    org.mybatis: warn
-    org.apache.ibatis: warn
+    com.example.zzk: info
+    org.springframework.web: info
+    org.mybatis: info
+    org.apache.ibatis: info
 # MyBatis Plus配置
 mybatis-plus:
   mapper-locations: classpath:mapper/*.xml
