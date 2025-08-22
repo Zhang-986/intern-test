@@ -2,8 +2,7 @@ package com.example.zzk.controller;
 
 import com.alibaba.fastjson2.JSONObject;
 import com.example.zzk.mapper.JsonMapper;
-import com.example.zzk.model.JsonEntity;
-import com.example.zzk.result.Result;
+
 import com.example.zzk.websocket.WebsocketHandler;
 import com.example.zzk.websocket.WsMsgTypeEnum;
 import lombok.RequiredArgsConstructor;
@@ -20,11 +19,7 @@ public class JsonTest {
     private final JsonMapper jsonMapper;
     private final WebsocketHandler websocketHandler;
 
-    @PostMapping("/append/json")
-    public Result<String> appendJson(@RequestBody JsonEntity jsonEntity) {
-        jsonMapper.insert(jsonEntity);
-        return Result.success("JSON数据已成功插入到数据库", jsonEntity.getId().toString());
-    }
+
 
     @GetMapping("/websocket/ping")
     public void ping(SessionStatus sessionStatus) {
