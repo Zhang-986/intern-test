@@ -2,6 +2,7 @@ package com.example.zzk.websocket;
 
 
 
+import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.alibaba.fastjson2.JSONWriter;
 import com.example.zzk.redis.RedisMessagePublisher;
@@ -17,6 +18,7 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
@@ -38,15 +40,27 @@ public class WebsocketHandler extends TextWebSocketHandler {
         String payload = message.getPayload();
         String originalUser = (String) session.getAttributes().get("originalUser");
         String instancePort = (String) session.getAttributes().get("instancePort");
-        
-        log.info("收到来自用户 {} (实例:{}) 的消息: {}", originalUser, instancePort, payload);
 
+
+        log.info("========================= sessionMap content =========================");
+        for (Map.Entry<String, ConcurrentHashMap<String, WebSocketSession>> outerEntry : sessionMap.entrySet()) {
+            String outerKey = outerEntry.getKey();
+            log.info("Outer Key: {}", outerKey);
+
+            ConcurrentHashMap<String, WebSocketSession> innerMap = outerEntry.getValue();
+            for (Map.Entry<String, WebSocketSession> innerEntry : innerMap.entrySet()) {
+                String innerKey = innerEntry.getKey();
+                WebSocketSession wsSession = innerEntry.getValue();
+                log.info("  Inner Key: {}, Session ID: {}", innerKey, wsSession.getId());
+            }
+        }
+        log.info("======================================================================");
         // 示例：简单回显，包含实例信息
         if ("ping".equalsIgnoreCase(payload)) {
             JSONObject response = new JSONObject();
             response.put("type", "pong");
             response.put("fromUser", originalUser);
-            response.put("fromInstance", instancePort);
+            response.put("fromInstance", serverPort);
             response.put("timestamp", System.currentTimeMillis());
             session.sendMessage(new TextMessage(response.toJSONString()));
         } else {
@@ -54,9 +68,10 @@ public class WebsocketHandler extends TextWebSocketHandler {
             response.put("type", "echo");
             response.put("message", "收到: " + payload);
             response.put("fromUser", originalUser);
-            response.put("fromInstance", instancePort);
+            response.put("fromInstance", serverPort);
             response.put("timestamp", System.currentTimeMillis());
             session.sendMessage(new TextMessage(response.toJSONString()));
+
         }
     }
 

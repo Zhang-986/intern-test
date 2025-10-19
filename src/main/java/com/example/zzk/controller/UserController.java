@@ -15,6 +15,7 @@ public class UserController {
     @PostMapping
     public User createUser(@RequestBody User user) {
         jsonMapper.insert(user);
+        jsonMapper.insert(user);
         return user;
     }
 

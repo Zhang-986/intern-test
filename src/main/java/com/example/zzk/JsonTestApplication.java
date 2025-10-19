@@ -10,8 +10,12 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 @MapperScan("com.example.zzk.mapper")
 public class JsonTestApplication {
 
+
     public static void main(String[] args) {
         SpringApplication.run(JsonTestApplication.class, args);
     }
+
+
+
 
 }

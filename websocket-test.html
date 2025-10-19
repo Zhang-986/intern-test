@@ -352,7 +352,7 @@
                     <input type="text" id="userId" value="user001" placeholder="输入用户ID">
                     
                     <label>WebSocket连接地址:</label>
-                    <input type="text" id="wsUrl" value="ws://192.168.1.124:8080/ws" placeholder="自动随机选择实例" readonly style="background-color: #f8f9fa;">
+                    <input type="text" id="wsUrl" value="ws://127.0.0.1:8080/ws" placeholder="自动随机选择实例" readonly style="background-color: #f8f9fa;">
                     <button onclick="refreshWsUrl()" style="margin-top: 5px;">🔄 随机选择实例</button>
                     
                     <div id="wsStatus" class="status disconnected">未连接</div>
@@ -399,7 +399,7 @@
             
             <div style="margin-top: 15px;">
                 <label>实例地址配置:</label>
-                <input type="text" id="serverUrls" value="http://192.168.1.124:8080,http://192.168.1.124:8081,http://192.168.1.124:8082" 
+                <input type="text" id="serverUrls" value="http://127.0.0.1:8080,http://127.0.0.1:8081,http://127.0.0.1:8082"
                        placeholder="多个地址用逗号分隔" style="width: 100%;">
                 <p style="font-size: 12px; color: #666;">
                     配置多个实例地址，系统会自动随机选择。当前请求将发送到: <span id="currentTarget" style="font-weight: bold; color: #007bff;">随机选择</span>
@@ -466,8 +466,8 @@
         let currentUser = 'user001';
 
         // 新增变量定义
-        let wsInstances = ['ws://192.168.1.124:8080/ws', 'ws://192.168.1.124:8081/ws', 'ws://192.168.1.124:8082/ws'];
-        let httpInstances = ['http://192.168.1.124:8080', 'http://192.168.1.124:8081', 'http://192.168.1.124:8082'];
+        let wsInstances = ['ws://127.0.0.1:8080/ws', 'ws://127.0.0.1:8081/ws', 'ws://127.0.0.1:8082/ws'];
+        let httpInstances = ['http://127.0.0.1:8080', 'http://127.0.0.1:8081', 'http://127.0.0.1:8082'];
         let messageStats = {
             total: 0,
             broadcast: 0,
@@ -687,7 +687,7 @@
             try {
                 log('wsLog', `🏓 发送Ping请求到: ${serverUrl}`, 'system');
                 
-                const response = await fetch(`${serverUrl}/websocket/ping`, {
+                const response = await fetch(`${serverUrl}/test/json/websocket/ping`, {
                     method: 'GET'
                 });
                 

@@ -20,6 +20,8 @@ public class WebSocketMessageDTO implements Serializable {
     // 消息数据 (JSON 字符串)
     private String dataJson;
 
+    // 消息来源
+
     // --- 广播逻辑 ---
     // 是否排除自己
     private boolean excludeSelf;
