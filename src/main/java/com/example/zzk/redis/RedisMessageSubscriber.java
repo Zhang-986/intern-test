@@ -8,6 +8,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+/**
+ * Redis Message Subscriber for WebSocket Messages
+ * 
+ * This component receives messages from the Redis pub/sub channel
+ * and distributes them to local WebSocket sessions. Each application
+ * instance has its own subscriber that processes messages for its
+ * connected clients.
+ */
 @Slf4j
 @Component
 public class RedisMessageSubscriber {
@@ -15,14 +23,23 @@ public class RedisMessageSubscriber {
     @Autowired
     private WebsocketHandler websocketHandler;
 
+    /**
+     * Process incoming message from Redis
+     * Called by RedisMessageListenerContainer when a message arrives
+     * 
+     * @param messageJson The message as JSON string
+     */
     public void receiveMessage(String messageJson) {
         try {
-            log.info("收到Redis消息: {}", messageJson);
+            log.info("Received Redis message: {}", messageJson);
 
+            // Deserialize message from JSON
             WebSocketMessageDTO dto = JSONObject.parseObject(messageJson, WebSocketMessageDTO.class);
 
+            // Route message based on broadcast type
             switch (dto.getBroadcastType()) {
                 case BROADCAST:
+                    // Send to all local clients (optionally excluding sender)
                     websocketHandler.sendMsgToLocalClients(
                             dto.getAction(),
                             dto.getDataJson(),
@@ -31,6 +48,7 @@ public class RedisMessageSubscriber {
                     );
                     break;
                 case SINGLE_USER:
+                    // Send to specific user if connected to this instance
                     websocketHandler.sendMsgToLocalUser(
                             dto.getAction(),
                             dto.getDataJson(),
@@ -38,11 +56,11 @@ public class RedisMessageSubscriber {
                     );
                     break;
                 default:
-                    log.warn("未知的广播类型: {}", dto.getBroadcastType());
+                    log.warn("Unknown broadcast type: {}", dto.getBroadcastType());
             }
 
         } catch (Exception e) {
-            log.error("处理Redis消息失败，原始数据: {}", messageJson, e);
+            log.error("Failed to process Redis message: {}", messageJson, e);
         }
     }
 }
