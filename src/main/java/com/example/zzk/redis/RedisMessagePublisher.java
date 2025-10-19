@@ -8,10 +8,18 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
+/**
+ * Redis Message Publisher for WebSocket Messages
+ * 
+ * This component publishes WebSocket messages to a Redis channel.
+ * All application instances subscribe to this channel, enabling
+ * cross-instance message distribution.
+ */
 @Slf4j
 @Component
 public class RedisMessagePublisher {
 
+    /** Redis channel name for WebSocket messages */
     public static final String WEBSOCKET_TOPIC = "ws:messages";
 
     private final RedisTemplate<String, String> redisTemplate;
@@ -20,12 +28,17 @@ public class RedisMessagePublisher {
         this.redisTemplate = redisTemplate;
     }
 
+    /**
+     * Publish a WebSocket message to Redis
+     * 
+     * @param message The message DTO to publish
+     */
     public void publish(WebSocketMessageDTO message) {
-        // 关键修改：手动序列化成JSON字符串
+        // Serialize message to JSON string manually
         String jsonMessage = JSONObject.toJSONString(message);
 
-        // 现在传入的是String类型，与RedisTemplate的声明一致
+        // Publish to Redis channel (convertAndSend uses configured serializers)
         redisTemplate.convertAndSend(WEBSOCKET_TOPIC, jsonMessage);
-        log.info("已发送WebSocket消息到Redis: {}", jsonMessage);
+        log.info("Published WebSocket message to Redis: {}", jsonMessage);
     }
 }

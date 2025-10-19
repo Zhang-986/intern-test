@@ -21,6 +21,18 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * WebSocket Handler for managing client connections and message routing
+ * 
+ * This handler is responsible for:
+ * - Managing WebSocket sessions for this instance
+ * - Handling incoming messages from clients
+ * - Publishing messages to Redis for cross-instance distribution
+ * - Receiving messages from Redis and broadcasting to local clients
+ * 
+ * Key Design: Each application instance maintains its own session map.
+ * Redis pub/sub is used to synchronize messages across instances.
+ */
 @Component
 @Slf4j
 public class WebsocketHandler extends TextWebSocketHandler {
@@ -31,17 +43,29 @@ public class WebsocketHandler extends TextWebSocketHandler {
     @Value("${server.port:8080}")
     private String serverPort;
 
-    // Key: userId, Value: Map<sessionId, WebSocketSession>
-    // 每个实例只管理连接到自己的会话
+    /**
+     * Session storage structure:
+     * Outer Map - Key: userId, Value: Map of sessions for that user
+     * Inner Map - Key: sessionId, Value: WebSocketSession
+     * 
+     * This allows multi-device support where one user can have multiple active sessions.
+     * Each instance only manages connections made to itself.
+     */
     private final ConcurrentHashMap<String, ConcurrentHashMap<String, WebSocketSession>> sessionMap = new ConcurrentHashMap<>();
 
+    /**
+     * Handle incoming text messages from WebSocket clients
+     * 
+     * @param session The WebSocket session that sent the message
+     * @param message The text message received
+     */
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
         String payload = message.getPayload();
         String originalUser = (String) session.getAttributes().get("originalUser");
         String instancePort = (String) session.getAttributes().get("instancePort");
 
-
+        // Debug logging: Display current session map content
         log.info("========================= sessionMap content =========================");
         for (Map.Entry<String, ConcurrentHashMap<String, WebSocketSession>> outerEntry : sessionMap.entrySet()) {
             String outerKey = outerEntry.getKey();
@@ -55,7 +79,8 @@ public class WebsocketHandler extends TextWebSocketHandler {
             }
         }
         log.info("======================================================================");
-        // 示例：简单回显，包含实例信息
+        
+        // Handle simple ping-pong for connection testing
         if ("ping".equalsIgnoreCase(payload)) {
             JSONObject response = new JSONObject();
             response.put("type", "pong");
@@ -64,6 +89,7 @@ public class WebsocketHandler extends TextWebSocketHandler {
             response.put("timestamp", System.currentTimeMillis());
             session.sendMessage(new TextMessage(response.toJSONString()));
         } else {
+            // Echo any other message back to the client
             JSONObject response = new JSONObject();
             response.put("type", "echo");
             response.put("message", "收到: " + payload);
@@ -75,15 +101,22 @@ public class WebsocketHandler extends TextWebSocketHandler {
         }
     }
 
-    // --- 公共 API：发布消息到 Redis ---
+    // ========================================
+    // Public API: Publish messages to Redis
+    // These methods are called by controllers/services to initiate message distribution
+    // ========================================
 
     /**
-     * 向所有客户端广播消息
+     * Broadcast message to all connected clients across all instances
+     * 
+     * @param action The message action type
+     * @param data The message data payload
      */
     public void sendMsgToAllClient(WsMsgTypeEnum action, Object data) {
         String dataJson = JSONObject.toJSONString(data, JSONWriter.Feature.NullAsDefaultValue);
-        log.info("发布广播消息到Redis: action={}, data={}", action.toString(), dataJson);
+        log.info("Publishing broadcast message to Redis: action={}, data={}", action.toString(), dataJson);
         
+        // Create simplified DTO for internal use
         SimpleWebSocketMessageDTO message = new SimpleWebSocketMessageDTO(
                 action.toString(),
                 dataJson,
@@ -93,7 +126,7 @@ public class WebsocketHandler extends TextWebSocketHandler {
                 "BROADCAST"
         );
         
-        // 将SimpleWebSocketMessageDTO转换为原始的WebSocketMessageDTO
+        // Convert to legacy DTO format for Redis compatibility
         WebSocketMessageDTO legacyMessage = new WebSocketMessageDTO(
                 action.toString(),
                 dataJson,
@@ -103,21 +136,25 @@ public class WebsocketHandler extends TextWebSocketHandler {
                 WebSocketMessageDTO.MessageBroadcastType.BROADCAST
         );
         
-        log.info("发布到Redis的消息: {}", JSONObject.toJSONString(legacyMessage));
+        log.info("Publishing to Redis: {}", JSONObject.toJSONString(legacyMessage));
         redisMessagePublisher.publish(legacyMessage);
     }
 
     /**
-     * 广播消息，但排除发起用户自己
+     * Broadcast message to all clients except the sender
+     * 
+     * @param action The message action type
+     * @param data The message data payload
+     * @param sourceUserId The user ID to exclude from broadcast
      */
     public void sendMsgToAllClientExcludeSelf(WsMsgTypeEnum action, Object data, String sourceUserId) {
         String dataJson = JSONObject.toJSONString(data, JSONWriter.Feature.NullAsDefaultValue);
-        log.info("发布排除自己的广播消息到Redis: action={}, sourceUserId={}", action.toString(), sourceUserId);
+        log.info("Publishing broadcast message (excluding self) to Redis: action={}, sourceUserId={}", action.toString(), sourceUserId);
         
         WebSocketMessageDTO legacyMessage = new WebSocketMessageDTO(
                 action.toString(),
                 dataJson,
-                true,
+                true,  // excludeSelf flag
                 sourceUserId,
                 null,
                 WebSocketMessageDTO.MessageBroadcastType.BROADCAST
@@ -127,11 +164,15 @@ public class WebsocketHandler extends TextWebSocketHandler {
     }
 
     /**
-     * 向单个用户的所有会话发送消息
+     * Send message to a specific user's all sessions (multi-device support)
+     * 
+     * @param action The message action type
+     * @param data The message data payload
+     * @param targetUserId The target user ID
      */
     public void sendMsgToOneUser(WsMsgTypeEnum action, Object data, String targetUserId) {
         String dataJson = JSONObject.toJSONString(data, JSONWriter.Feature.NullAsDefaultValue);
-        log.info("发布单用户消息到Redis: action={}, targetUserId={}", action.toString(), targetUserId);
+        log.info("Publishing single-user message to Redis: action={}, targetUserId={}", action.toString(), targetUserId);
         
         WebSocketMessageDTO legacyMessage = new WebSocketMessageDTO(
                 action.toString(),
@@ -146,58 +187,72 @@ public class WebsocketHandler extends TextWebSocketHandler {
     }
 
 
-    // --- 内部方法：被 Redis 订阅者调用，用于向本实例的客户端发消息 ---
+    // ========================================
+    // Internal Methods: Called by Redis Subscriber
+    // These methods distribute messages to local WebSocket sessions
+    // ========================================
+    
     /**
-     * 向连接到【本实例】的所有客户端推送广播消息
-     * (由 RedisMessageSubscriber 调用)
+     * Broadcast message to all clients connected to THIS instance
+     * Called by RedisMessageSubscriber when a broadcast message is received from Redis
+     * 
+     * @param action The message action
+     * @param dataJson The message data as JSON string
+     * @param excludeSelf Whether to exclude the sender from receiving
+     * @param sourceUserId The user ID of the sender (used when excludeSelf=true)
      */
     public void sendMsgToLocalClients(String action, String dataJson, boolean excludeSelf, String sourceUserId) {
-        log.info("开始向本地客户端广播消息: action={}, excludeSelf={}, sourceUserId={}", action, excludeSelf, sourceUserId);
-        log.info("当前实例sessionMap中的用户: {}", sessionMap.keySet());
+        log.info("Broadcasting message to local clients: action={}, excludeSelf={}, sourceUserId={}", action, excludeSelf, sourceUserId);
+        log.info("Current instance sessionMap users: {}", sessionMap.keySet());
         
         if (sessionMap.isEmpty()) {
-            log.warn("当前实例没有任何WebSocket连接");
+            log.warn("No WebSocket connections on this instance");
             return;
         }
 
         int sentCount = 0;
         sessionMap.forEach((userId, userSessions) -> {
-            log.info("检查用户: {}, 会话数: {}", userId, userSessions.size());
+            log.info("Checking user: {}, session count: {}", userId, userSessions.size());
             
+            // Skip sender's sessions if excludeSelf is true
             if (excludeSelf && userId.equals(sourceUserId)) {
-                log.info("跳过发起者自己: {}", userId);
-                return; // 跳过发起者自己的所有会话
+                log.info("Skipping sender: {}", userId);
+                return;
             }
             
             userSessions.values().forEach(session -> {
                 if (session.isOpen()) {
-                    // 获取原始用户ID和实例信息
+                    // Get session attributes for message context
                     String originalUser = (String) session.getAttributes().get("originalUser");
                     String instancePort = (String) session.getAttributes().get("instancePort");
                     
-                    log.info("准备向用户 {} (实例:{}) 发送消息", originalUser, instancePort);
+                    log.info("Sending message to user {} (instance:{})", originalUser, instancePort);
                     
                     TextMessage textMessage = buildTextMessage(action, dataJson, originalUser, instancePort);
                     sendMessage(session, textMessage);
                 } else {
-                    log.warn("会话已关闭，跳过发送: {}", session.getId());
+                    log.warn("Session closed, skipping: {}", session.getId());
                 }
             });
         });
         
-        log.info("广播消息发送完成，实际发送数量: {}", sentCount);
+        log.info("Broadcast completed, messages sent: {}", sentCount);
     }
 
     /**
-     * 向连接到【本实例】的单个用户推送消息
-     * (由 RedisMessageSubscriber 调用)
+     * Send message to a specific user connected to THIS instance
+     * Called by RedisMessageSubscriber when a single-user message is received
+     * 
+     * @param action The message action
+     * @param dataJson The message data as JSON string
+     * @param targetUserId The target user ID
      */
     public void sendMsgToLocalUser(String action, String dataJson, String targetUserId) {
         ConcurrentHashMap<String, WebSocketSession> userSessions = sessionMap.get(targetUserId);
         if (userSessions != null && !userSessions.isEmpty()) {
-            log.info("Sending local message to user {}, action: {}", targetUserId, action);
+            log.info("Sending message to local user {}, action: {}", targetUserId, action);
             userSessions.values().forEach(session -> {
-                // 获取原始用户ID和实例信息
+                // Get session attributes for message context
                 String originalUser = (String) session.getAttributes().get("originalUser");
                 String instancePort = (String) session.getAttributes().get("instancePort");
                 
@@ -207,25 +262,32 @@ public class WebsocketHandler extends TextWebSocketHandler {
         }
     }
 
-    // --- 连接管理 ---
+    // ========================================
+    // Connection Lifecycle Management
+    // ========================================
+    
+    /**
+     * Called when a new WebSocket connection is established
+     * Stores the session and sends a welcome message
+     */
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
-        // 从 attributes 获取 user（之前由 HandshakeInterceptor 存入）
+        // Extract user information from session attributes (set by HandshakeInterceptor)
         String user = (String) session.getAttributes().get("user");
         String originalUser = (String) session.getAttributes().get("originalUser");
         String instancePort = (String) session.getAttributes().get("instancePort");
 
         if (user != null) {
-            // 将 session 存入本实例的 map 中，按 user 分组
+            // Store session in instance-local map, grouped by user
             sessionMap.computeIfAbsent(user, k -> new ConcurrentHashMap<>())
                     .put(session.getId(), session);
-            log.info("WebSocket 连接已建立. User: {}, OriginalUser: {}, Instance: {}, SessionId: {}", 
+            log.info("WebSocket connection established. User: {}, OriginalUser: {}, Instance: {}, SessionId: {}", 
                      user, originalUser, instancePort, session.getId());
             
-            // 输出当前所有会话信息用于调试
-            log.info("当前实例 {} 的所有会话: {}", instancePort, sessionMap.keySet());
+            // Log current sessions for debugging
+            log.info("Current sessions on instance {}: {}", instancePort, sessionMap.keySet());
             
-            // 发送连接成功消息
+            // Send welcome message to client
             JSONObject welcomeMsg = new JSONObject();
             welcomeMsg.put("type", "welcome");
             welcomeMsg.put("message", "WebSocket连接成功");
@@ -236,11 +298,15 @@ public class WebsocketHandler extends TextWebSocketHandler {
             session.sendMessage(new TextMessage(welcomeMsg.toJSONString()));
             
         } else {
-            log.warn("WebSocket 连接失败，未提供 user 标识符");
-            session.close(CloseStatus.BAD_DATA); // 关闭连接
+            log.warn("WebSocket connection rejected: no user identifier provided");
+            session.close(CloseStatus.BAD_DATA);
         }
     }
 
+    /**
+     * Called when a WebSocket connection is closed
+     * Removes the session from the session map
+     */
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
         String user = (String) session.getAttributes().get("user");
@@ -248,9 +314,9 @@ public class WebsocketHandler extends TextWebSocketHandler {
             ConcurrentHashMap<String, WebSocketSession> userSessions = sessionMap.get(user);
             if (userSessions != null) {
                 userSessions.remove(session.getId());
-                log.info("WebSocket 连接已关闭. User: {}, SessionId: {}, Reason: {}", user, session.getId(), status);
+                log.info("WebSocket connection closed. User: {}, SessionId: {}, Reason: {}", user, session.getId(), status);
 
-                // 如果该用户没有其他会话，移除空条目
+                // Remove empty user entry to prevent memory leaks
                 if (userSessions.isEmpty()) {
                     sessionMap.remove(user);
                 }
@@ -259,6 +325,9 @@ public class WebsocketHandler extends TextWebSocketHandler {
         super.afterConnectionClosed(session, status);
     }
 
+    /**
+     * Handle WebSocket transport errors
+     */
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
         log.error("WebSocket transport error for session {}", session.getId(), exception);
@@ -266,15 +335,26 @@ public class WebsocketHandler extends TextWebSocketHandler {
     }
 
 
-    // --- Helper Methods ---
+    // ========================================
+    // Helper Methods
+    // ========================================
 
+    /**
+     * Build a text message for sending to WebSocket client
+     * 
+     * @param action Message action type
+     * @param dataJson Message data as JSON string
+     * @param user User ID
+     * @param instancePort Instance port number
+     * @return TextMessage ready to send
+     */
     private TextMessage buildTextMessage(String action, String dataJson, String user, String instancePort) {
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("action", action);
-        // dataJson 已经是字符串，需要解析回对象再放入，以避免双重转义
+        // Parse JSON string back to object to avoid double-encoding
         jsonObject.put("data", JSONObject.parse(dataJson));
         
-        // 添加实例和用户信息
+        // Add context information
         jsonObject.put("fromUser", user);
         jsonObject.put("fromInstance", instancePort);
         jsonObject.put("timestamp", System.currentTimeMillis());
@@ -282,7 +362,9 @@ public class WebsocketHandler extends TextWebSocketHandler {
         return new TextMessage(jsonObject.toJSONString());
     }
 
-    // 重载方法保持兼容性
+    /**
+     * Overloaded method for backward compatibility
+     */
     private TextMessage buildTextMessage(String action, String dataJson) {
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("action", action);
@@ -292,17 +374,23 @@ public class WebsocketHandler extends TextWebSocketHandler {
         return new TextMessage(jsonObject.toJSONString());
     }
 
+    /**
+     * Send a message to a WebSocket session with error handling
+     * 
+     * @param session The target session
+     * @param message The message to send
+     */
     private void sendMessage(WebSocketSession session, TextMessage message) {
         if (session.isOpen()) {
             try {
-                log.info("向会话 {} 发送消息: {}", session.getId(), message.getPayload());
+                log.info("Sending message to session {}: {}", session.getId(), message.getPayload());
                 session.sendMessage(message);
-                log.info("消息发送成功到会话: {}", session.getId());
+                log.info("Message sent successfully to session: {}", session.getId());
             } catch (IOException e) {
-                log.error("向会话 {} 发送消息失败", session.getId(), e);
+                log.error("Failed to send message to session {}", session.getId(), e);
             }
         } else {
-            log.warn("会话 {} 已关闭，无法发送消息", session.getId());
+            log.warn("Session {} is closed, cannot send message", session.getId());
         }
     }
 }
