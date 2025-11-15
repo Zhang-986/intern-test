@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.util.List;
 
 @FeignClient(name = "go-service", url = "http://localhost:9086")
-
 public interface GoFeign {
     @GetMapping("/go/api")
     public String getGoApi(@RequestParam("info") List<String> infoList);
